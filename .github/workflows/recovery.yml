@@ -39,10 +39,6 @@ jobs:
       run: |
         chmod a+x script2.sh
         ./script2.sh || true
-            - name: Patch Process-2
-      run: |
-        chmod a+x script2.sh
-        ./script2.sh || true
         avbtool extract_public_key --key phh.pem --output phh.pub.bin
         PARTITION_SIZE=$(( ( $(wc -c recovery.img | cut -f 1 -d ' ') + 69632 + 4095 ) / 4096 * 4096 ))
         avbtool add_hash_footer --partition_name recovery --partition_size $PARTITION_SIZE --image recovery.img --output recovery-patched.img --key phh.pem --algorithm sha256_rsa2048
@@ -56,5 +52,5 @@ jobs:
     - name: Upload Recovery
       uses: actions/upload-artifact@v4.0.0
       with:
-        path: /home/runner/work/fastbootd-recovery-patcher/fastbootd-recovery-patcher/output/*.md5
+        path: output/*.md5
         name: Patched-Recovery
