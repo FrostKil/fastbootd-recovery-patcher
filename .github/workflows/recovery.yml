@@ -20,9 +20,11 @@ jobs:
       uses: actions/checkout@main
 
     - name: Prepare the environment
-      run: |
-        sudo apt install git wget lz4 tar openssl python3 python3-pip -y
-        pip3 install avbtool
+   run: |
+    sudo apt install git wget lz4 tar openssl python3 python3-pip -y
+    git clone https://android.googlesource.com/platform/external/avb
+    sudo cp avb/avbtool.py /usr/local/bin/avbtool
+    sudo chmod +x /usr/local/bin/avbtool
 
     - name: Fetch image from URL
       run: |
