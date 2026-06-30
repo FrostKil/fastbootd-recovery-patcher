@@ -41,8 +41,7 @@ jobs:
         ./script2.sh || true
         python3 avbtool extract_public_key --key phh.pem --output phh.pub.bin
         PARTITION_SIZE=$(($(wc -c recovery.img | cut -f 1 -d ' ') + 69632))
-        python3 avbtool add_hash_footer --partition_name recovery --partition_size $PARTITION_SIZE --image recovery.img --output recovery-patched.img --key phh.pem --algorithm sha256_rsa2048 --key_block_version 4
-        mkdir output && cd output
+        python3 avbtool add_hash_footer --partition_name recovery --partition_size $PARTITION_SIZE --image recovery.img --output recovery-patched.img --key phh.pem --algorithm sha256_rsa2048
         mv ../recovery-patched.img recovery.img
         tar cvf fastbootd-recovery.tar recovery.img
         md5sum -t fastbootd-recovery.tar >> fastbootd-recovery.tar
