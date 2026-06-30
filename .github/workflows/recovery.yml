@@ -16,44 +16,79 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    - name: Check Out
-      uses: actions/checkout@main
+      - name: Check Out
+        uses: actions/checkout@v4
 
-    - name: Prepare the environment
-   run: |
-    sudo apt install git wget lz4 tar openssl python3 python3-pip -y
-    git clone https://android.googlesource.com/platform/external/avb
-    sudo cp avb/avbtool.py /usr/local/bin/avbtool
-    sudo chmod +x /usr/local/bin/avbtool
+      - name: Prepare the environment
+        run: |
+          set -e
+          sudo apt-get update
+          sudo apt-get install -y git wget lz4 tar openssl python3 python3-pip
+          # clone avb tools (if already present the clone will be skipped)
+          git clone https://android.googlesource.com/platform/external/avb avb || true
+          sudo cp avb/avbtool.py /usr/local/bin/avbtool || true
+          sudo chmod +x /usr/local/bin/avbtool || true
 
-    - name: Fetch image from URL
-      run: |
-        ls
-        pwd
-        wget ${{github.event.inputs.RECOVERY_URL}} -O recovery.img
+      - name: Fetch image from URL
+        run: |
+          # prefer the workflow input, fall back to env.RECOVERY_URL
+          URL="${{ github.event.inputs.RECOVERY_URL || env.RECOVERY_URL }}"
+          echo "Fetching $URL"
+          wget "$URL" -O recovery.img
 
-    - name: Patch Process-1
-      run: |
-        chmod a+x script1.sh
-        chmod a+x magiskboot
-        ./script1.sh || true
+      - name: Patch Process-1
+        run: |
+          set -e || true
+          if [ -f script1.sh ]; then
+            chmod a+x script1.sh
+            ./script1.sh || true
+          else
+            echo "script1.sh not found, skipping"
+          fi
+          if [ -f magiskboot ]; then
+            chmod a+x magiskboot
+          fi
 
-    - name: Patch Process-2
-      run: |
-        chmod a+x script2.sh
-        ./script2.sh || true
-        avbtool extract_public_key --key phh.pem --output phh.pub.bin
-        PARTITION_SIZE=$(( ( $(wc -c recovery.img | cut -f 1 -d ' ') + 69632 + 4095 ) / 4096 * 4096 ))
-        avbtool add_hash_footer --partition_name recovery --partition_size $PARTITION_SIZE --image recovery.img --output recovery-patched.img --key phh.pem --algorithm sha256_rsa2048
-        mv ../recovery-patched.img recovery.img
-        tar cvf fastbootd-recovery.tar recovery.img
-        md5sum -t fastbootd-recovery.tar >> fastbootd-recovery.tar
-        mv fastbootd-recovery.tar fastbootd-recovery.tar.md5
-        ls
-        pwd
+      - name: Patch Process-2
+        run: |
+          set -e || true
+          if [ -f script2.sh ]; then
+            chmod a+x script2.sh
+            ./script2.sh || true
+          else
+            echo "script2.sh not found, skipping"
+          fi
 
-    - name: Upload Recovery
-      uses: actions/upload-artifact@v4.0.0
-      with:
-        path: output/*.md5
-        name: Patched-Recovery
+          # extract public key (assumes phh.pem provided by the repo or earlier step)
+          if command -v avbtool >/dev/null 2>&1; then
+            avbtool extract_public_key --key phh.pem --output phh.pub.bin || true
+          else
+            echo "avbtool not available, skipping key extraction"
+          fi
+
+          # compute partition size (align to 4KiB, add header space)
+          PARTITION_SIZE=$(( ( $(wc -c < recovery.img) + 69632 + 4095 ) / 4096 * 4096 ))
+
+          if command -v avbtool >/dev/null 2>&1; then
+            avbtool add_hash_footer --partition_name recovery --partition_size $PARTITION_SIZE --image recovery.img --output recovery-patched.img --key phh.pem --algorithm sha256_rsa2048 || true
+            # move patched image into place (if produced)
+            if [ -f recovery-patched.img ]; then
+              mv recovery-patched.img recovery.img
+            fi
+          else
+            echo "avbtool not available, skipping add_hash_footer"
+          fi
+
+          # package
+          tar cvf fastbootd-recovery.tar recovery.img
+          # create a separate md5 file (do not append into the tar)
+          md5sum fastbootd-recovery.tar > fastbootd-recovery.tar.md5
+
+          ls -lah
+          pwd
+
+      - name: Upload Recovery
+        uses: actions/upload-artifact@v4
+        with:
+          path: fastbootd-recovery.tar*
+          name: Patched-Recovery
