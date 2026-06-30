@@ -1,9 +1,20 @@
 #!/bin/bash
 
+set -e  # Exit on any error
+
 mkdir unpack
 cd unpack
 ../magiskboot unpack ../r.img
 ../magiskboot cpio ramdisk.cpio extract
+
+# Check if system/bin/recovery exists before patching
+if [ ! -f system/bin/recovery ]; then
+    echo "ERROR: system/bin/recovery not found in ramdisk!"
+    echo "Available files in ramdisk:"
+    find . -type f | head -20
+    exit 1
+fi
+
 # Reverse fastbootd ENG mode check
 ../magiskboot hexpatch system/bin/recovery e10313aaf40300aa6ecc009420010034 e10313aaf40300aa6ecc0094 # 20 01 00 35
 ../magiskboot hexpatch system/bin/recovery eec3009420010034 eec3009420010035
@@ -25,3 +36,5 @@ cd unpack
 ../magiskboot cpio ramdisk.cpio 'add 0755 system/bin/recovery system/bin/recovery'
 ../magiskboot repack ../r.img new-boot.img
 cp new-boot.img ../recovery-patched.img
+
+echo "Script2 completed successfully. recovery-patched.img created."
